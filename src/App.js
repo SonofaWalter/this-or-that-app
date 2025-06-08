@@ -41,16 +41,15 @@ const App = () => {
   const fetchOptionsFromAI = useCallback(async (category) => {
     setError(''); // Clear any previous errors
     try {
-      // THIS LINE IS CRUCIAL FOR NETLIFY DEPLOYMENT:
-      // It accesses the API key from environment variables set in Netlify.
       const apiKey = process.env.REACT_APP_GEMINI_API_KEY; 
 
       if (!apiKey) {
         throw new Error("GEMINI_API_KEY is not configured. Please set REACT_APP_GEMINI_API_KEY in Netlify environment variables.");
       }
 
-      // Construct the prompt for the AI model
-      const prompt = `Generate two distinct, creative, and engaging "This or That" options for the category "${category}". The options should be short phrases.
+      // --- MODIFIED PROMPT AND GENERATION CONFIG ---
+      // Adding explicit instructions for variety and uniqueness, and adjusting temperature.
+      const prompt = `Generate two distinct, creative, engaging, and **highly unique** "This or That" options for the category "${category}". **Ensure the options are fresh and do not repeat previous ideas**. The options should be short phrases.
       Example for "Food & Drink":
       - "Pineapple on pizza"
       - "No pineapple on pizza"
@@ -78,9 +77,13 @@ const App = () => {
             },
             minItems: 2, // Ensure at least two items
             maxItems: 2 // Ensure exactly two items
-          }
+          },
+          // --- ADDED TEMPERATURE FOR MORE CREATIVITY ---
+          temperature: 0.9, // Adjust between 0.0 (less random) and 1.0 (more random)
+          // topP: 0.9, // You can also experiment with topP, but temperature is usually more impactful for randomness
         }
       };
+      // --- END MODIFIED PROMPT AND GENERATION CONFIG ---
 
       // API URL for Gemini 2.0 Flash
       const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
@@ -127,6 +130,7 @@ const App = () => {
     }
   }, []);
 
+  // ... (rest of your App.js code remains the same) ...
   const handleGenerateNew = useCallback(async (initialLoad = false) => {
     setIsLoading(true);
     const newOptions = await fetchOptionsFromAI(selectedCategory);

@@ -15,6 +15,8 @@ const App = () => {
 
   // History state: an array to store previously generated questions
   // Each item will be an object like { category: string, optionA: string, optionB: string }
+  // History is still maintained internally for potential future features or debugging,
+  // but the "Previous Question" button is removed from the UI.
   const [history, setHistory] = useState([]);
   // Index to keep track of the current position in the history array
   const [historyIndex, setHistoryIndex] = useState(-1); // -1 means no question loaded yet
@@ -41,22 +43,23 @@ const App = () => {
   const fetchOptionsFromAI = useCallback(async (category) => {
     setError(''); // Clear any previous errors
     try {
-      const apiKey = process.env.REACT_APP_GEMINI_API_KEY; 
+      // In the Canvas environment, process.env is not defined.
+      // The Canvas runtime automatically provides the API key in the fetch call if 'apiKey' is an empty string.
+      // For Netlify deployment, remember to change this back to process.env.REACT_APP_GEMINI_API_KEY.
+      const apiKey = ""; 
 
-      if (!apiKey) {
-        throw new Error("GEMINI_API_KEY is not configured. Please set REACT_APP_GEMINI_API_KEY in Netlify environment variables.");
-      }
-
-      // --- MODIFIED PROMPT AND GENERATION CONFIG ---
-      // Adding explicit instructions for variety and uniqueness, and adjusting temperature.
-      const prompt = `Generate two distinct, creative, engaging, and **highly unique** "This or That" options for the category "${category}". **Ensure the options are fresh and do not repeat previous ideas**. The options should be short phrases.
+      // Construct the prompt for the AI model
+      const prompt = `Generate two distinct, highly creative, engaging, and **completely unique** "This or That" options for the category "${category}".
+      **Crucially, ensure that the two options use different primary keywords and concepts to avoid any repetition or similarity in wording, even if subtle.**
+      The options should be short phrases and present a clear dilemma.
+      
       Example for "Food & Drink":
-      - "Pineapple on pizza"
-      - "No pineapple on pizza"
+      - "Eat only bland food for life"
+      - "Eat only extremely spicy food for life"
       
       Example for "Superpowers":
-      - "Fly but only at a walking speed"
-      - "Teleport but only to places you've been before"
+      - "Ability to fly anywhere instantly"
+      - "Ability to control minds but only while sleeping"
 
       Provide the response in a JSON array format with two strings, like:
       ["Option 1 Text", "Option 2 Text"]`;
@@ -78,12 +81,11 @@ const App = () => {
             minItems: 2, // Ensure at least two items
             maxItems: 2 // Ensure exactly two items
           },
-          // --- ADDED TEMPERATURE FOR MORE CREATIVITY ---
-          temperature: 0.9, // Adjust between 0.0 (less random) and 1.0 (more random)
-          // topP: 0.9, // You can also experiment with topP, but temperature is usually more impactful for randomness
+          temperature: 1.0, // MAX temperature for highest randomness and creativity
+          // topP: 0.95, // Can also experiment with topP for diversity
         }
       };
-      // --- END MODIFIED PROMPT AND GENERATION CONFIG ---
+      // --- END ENHANCED PROMPT AND GENERATION CONFIG ---
 
       // API URL for Gemini 2.0 Flash
       const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
@@ -130,13 +132,17 @@ const App = () => {
     }
   }, []);
 
-  // ... (rest of your App.js code remains the same) ...
+  /**
+   * Generates new options, adds them to history, and updates the display.
+   * This is called when the "Next Question" button is clicked or a new category is selected.
+   */
   const handleGenerateNew = useCallback(async (initialLoad = false) => {
-    setIsLoading(true);
+    setIsLoading(true); // Set loading state to true
     const newOptions = await fetchOptionsFromAI(selectedCategory);
     const [newOptionA, newOptionB] = newOptions;
 
-    if (newOptionA || newOptionB) {
+    // Only add to history if options were successfully generated and it's not an initial empty state
+    if (newOptionA || newOptionB) { // Check if at least one option has content
         const newHistoryItem = {
           category: selectedCategory,
           optionA: newOptionA,
@@ -144,38 +150,35 @@ const App = () => {
         };
 
         setHistory((prevHistory) => {
+          // If we are not at the end of the history, truncate the "future" history
           const updatedHistory = initialLoad ? [] : prevHistory.slice(0, historyIndex + 1);
           return [...updatedHistory, newHistoryItem];
         });
 
+        // Update history index to point to the newly added item
         setHistoryIndex((prevIndex) => initialLoad ? 0 : prevIndex + 1);
     } else {
+        // If options failed to generate, clear them from display
         setOptionA('');
         setOptionB('');
     }
 
+    // Set the displayed options
     setOptionA(newOptionA);
     setOptionB(newOptionB);
-    setIsLoading(false);
-  }, [selectedCategory, fetchOptionsFromAI, historyIndex]);
+    setIsLoading(false); // Reset loading state
+  }, [selectedCategory, fetchOptionsFromAI, historyIndex]); // Dependencies for useCallback
 
-  const handlePrevious = useCallback(() => {
-    if (historyIndex > 0) {
-      const newIndex = historyIndex - 1;
-      const prevQuestion = history[newIndex];
-      setOptionA(prevQuestion.optionA);
-      setOptionB(prevQuestion.optionB);
-      setSelectedCategory(prevQuestion.category);
-      setHistoryIndex(newIndex);
-    }
-  }, [history, historyIndex]);
+  // handlePrevious function is removed as the button is removed.
+  // The history state management remains, but is not exposed via a UI button.
 
+  // Effect to handle initial load and category changes
   useEffect(() => {
     const currentQuestion = history[historyIndex];
     if (!currentQuestion || currentQuestion.category !== selectedCategory) {
-        handleGenerateNew(historyIndex === -1);
+        handleGenerateNew(historyIndex === -1); // Pass true for initial load
     }
-  }, [selectedCategory, handleGenerateNew, history, historyIndex]);
+  }, [selectedCategory, handleGenerateNew, history, historyIndex]); // Dependencies for useEffect
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-green-600 to-emerald-700 flex flex-col items-center justify-center p-4 font-sans text-white">
@@ -193,7 +196,7 @@ const App = () => {
               className={`
                 px-5 py-3 rounded-xl text-lg font-medium transition-all duration-300 ease-in-out
                 ${selectedCategory === category
-                  ? 'bg-emerald-800 text-white shadow-lg scale-105 transform'
+                  ? 'bg-emerald-800 text-white shadow-lg scale-105 transform' // Darker emerald for selected
                   : 'bg-green-700 hover:bg-green-600 text-white hover:scale-105 transform shadow-md'}
                 focus:outline-none focus:ring-2 focus:ring-green-400 focus:ring-offset-2 focus:ring-offset-green-500
               `}
@@ -208,13 +211,15 @@ const App = () => {
       <div className="bg-white/15 backdrop-blur-md rounded-3xl p-8 shadow-2xl w-full max-w-4xl flex flex-col items-center justify-center min-h-[250px]">
         {isLoading ? (
           <div className="flex flex-col items-center">
-            <div className="animate-spin rounded-full h-16 w-16 border-t-4 border-b-4 border-green-300"></div>
+            {/* Simple spinner */}
+            <div className="animate-spin rounded-full h-16 w-16 border-t-4 border-b-4 border-green-300"></div> {/* Green spinner */}
             <p className="mt-4 text-xl">Generating options...</p>
           </div>
         ) : error ? (
           <p className="text-red-300 text-center text-xl">{error}</p>
         ) : (
           <div className="flex flex-col md:flex-row items-center justify-center w-full">
+            {/* Option A */}
             <div className="bg-white text-gray-800 rounded-2xl p-6 shadow-xl flex-1 m-2 w-full md:w-auto min-h-[120px] flex items-center justify-center text-center text-2xl font-semibold mb-4 md:mb-0 transform hover:scale-105 transition-transform duration-300">
               {optionA || "Select a category and click 'Next Question'!"}
             </div>
@@ -222,6 +227,7 @@ const App = () => {
             <p className="text-white text-3xl font-bold mx-4 hidden md:block">OR</p>
             <p className="text-white text-3xl font-bold my-4 md:hidden">OR</p>
 
+            {/* Option B */}
             <div className="bg-white text-gray-800 rounded-2xl p-6 shadow-xl flex-1 m-2 w-full md:w-auto min-h-[120px] flex items-center justify-center text-center text-2xl font-semibold transform hover:scale-105 transition-transform duration-300">
               {optionB || "Your options will appear here."}
             </div>
@@ -231,7 +237,8 @@ const App = () => {
 
       {/* Navigation and Generate Buttons */}
       <div className="flex flex-col sm:flex-row items-center justify-center gap-4 mt-8 w-full max-w-4xl">
-        <button
+        {/* Previous Question button removed as requested */}
+        {/* <button
           onClick={handlePrevious}
           disabled={isLoading || historyIndex <= 0}
           className={`
@@ -242,14 +249,14 @@ const App = () => {
           `}
         >
           Previous Question
-        </button>
+        </button> */}
 
         <button
           onClick={handleGenerateNew}
-          disabled={isLoading}
+          disabled={isLoading} // Disable button while loading
           className={`
             px-8 py-4 rounded-full text-2xl font-bold shadow-2xl transition-all duration-300 ease-in-out
-            bg-green-700 hover:bg-green-800 text-white
+            bg-green-700 hover:bg-green-800 text-white w-full sm:w-auto
             ${isLoading ? 'opacity-70 cursor-not-allowed' : 'hover:scale-105 transform'}
             focus:outline-none focus:ring-4 focus:ring-green-400 focus:ring-offset-2 focus:ring-offset-emerald-700
           `}

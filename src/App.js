@@ -41,11 +41,14 @@ const App = () => {
   const fetchOptionsFromAI = useCallback(async (category) => {
     setError(''); // Clear any previous errors
     try {
-      // MODIFIED: Changed API key fetching for Canvas environment.
-      // In the Canvas environment, process.env is not defined.
-      // The Canvas runtime automatically provides the API key in the fetch call if 'apiKey' is an empty string.
-      // For Netlify deployment, remember to change this back to process.env.REACT_APP_GEMINI_API_KEY.
-      const apiKey = ""; 
+      // THIS LINE IS CRUCIAL FOR NETLIFY DEPLOYMENT:
+      // It accesses the API key from environment variables set in Netlify.
+      // Make sure REACT_APP_GEMINI_API_KEY is set in Netlify Environment Variables.
+      const apiKey = process.env.REACT_APP_GEMINI_API_KEY; 
+
+      if (!apiKey) {
+        throw new Error("GEMINI_API_KEY is not configured. Please set REACT_APP_GEMINI_API_KEY in Netlify environment variables.");
+      }
 
       // --- ENHANCED PROMPT FOR GREATER RANDOMNESS AND WORD DIVERSITY ---
       const prompt = `Generate two distinct, highly creative, engaging, and **completely unique** "This or That" options for the category "${category}".
@@ -99,7 +102,7 @@ const App = () => {
       // Check if the response is successful
       if (!response.ok) {
         const errorData = await response.json();
-        setError(`HTTP error! Status: ${response.status}. Details: ${JSON.stringify(errorData)}`); // Used setError here
+        setError(`HTTP error! Status: ${response.status}. Details: ${JSON.stringify(errorData)}`);
         throw new Error(`HTTP error! Status: ${response.status}. Details: ${JSON.stringify(errorData)}`);
       }
 
@@ -120,11 +123,11 @@ const App = () => {
             typeof options[0] === 'string' && typeof options[1] === 'string') {
           return options;
         } else {
-          setError('AI response format was unexpected. Expected an array of two strings.'); // Used setError here
+          setError('AI response format was unexpected. Expected an array of two strings.');
           throw new Error('AI response format was unexpected. Expected an array of two strings.');
         }
       } else {
-        setError('Failed to generate options from AI. Response was empty or malformed.'); // Used setError here
+        setError('Failed to generate options from AI. Response was empty or malformed.');
         throw new Error('Failed to generate options from AI. Response was empty or malformed.');
       }
     } catch (err) {
@@ -169,7 +172,7 @@ const App = () => {
     setOptionA(newOptionA);
     setOptionB(newOptionB);
     setIsLoading(false); // Reset loading state
-  }, [selectedCategory, fetchOptionsFromAI, historyIndex]); // Dependencies for useCallback
+  }, [selectedCategory, fetchOptionsFromAI, historyIndex]);
 
   // handlePrevious function is removed as the button is removed.
   // The history state management remains, but is not exposed via a UI button.
